@@ -1,0 +1,8 @@
+.venv
+.vscode
+zephyrproject/bootloader
+zephyrproject/.west
+zephyrproject/build
+zephyrproject/modules
+zephyrproject/tools
+zephyrproject/zephyr
