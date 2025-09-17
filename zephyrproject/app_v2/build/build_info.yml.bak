@@ -1,5 +1,0 @@
-west:
-  command: F:\Workspace\smart_environmental\.venv\Scripts\west build -p always -b
-    nucleo_f103rb ..\app_v2 -D DTC_OVERLAY_FILE=app.overlay
-  topdir: F:\Workspace\smart_environmental\zephyrproject
-  version: 1.4.0
