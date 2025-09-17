@@ -1,0 +1,40 @@
+# Available runners configured by board.cmake.
+runners:
+- stm32cubeprogrammer
+- openocd
+- jlink
+
+# Default flash runner if --runner is not given.
+flash-runner: stm32cubeprogrammer
+
+# Default debug runner if --runner is not given.
+debug-runner: openocd
+
+# Common runner configuration values.
+config:
+  board_dir: F:/Workspace/smart_environmental/zephyrproject/zephyr/boards/st/nucleo_f103rb
+  # Build outputs:
+  elf_file: zephyr.elf
+  hex_file: zephyr.hex
+  bin_file: zephyr.bin
+  # Host tools:
+  gdb: C:/zephyr-sdk-0.17.4/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb-py.exe
+  openocd: C:/zephyr-sdk-0.17.4/xpack-openocd-0.12.0-6/bin/openocd.exe
+  openocd_search:
+    - C:\Program Files/OpenOCD/share/openocd/scripts
+
+# Runner specific arguments
+args:
+  stm32cubeprogrammer:
+    - --port=swd
+    - --reset-mode=hw
+  openocd:
+    - --cmd-load
+    - flash write_image erase
+    - --cmd-verify
+    - verify_image
+    - --cmd-erase=stm32f1x mass_erase 0
+  jlink:
+    - --dt-flash=y
+    - --device=STM32F103RB
+    - --speed=4000

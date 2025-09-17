@@ -9,7 +9,7 @@
 /* === ADC Setup === */
 #define ADC_NODE DT_NODELABEL(adc1)   /* Use ADC1 */
 #define ADC_CHANNEL_SMOKE 0                 /* channel 0 (PA0) */
-#define ADC_CHANNEL_FLAME 2               /* channel 2 (PA2) */
+#define ADC_CHANNEL_FLAME 4               /* channel 4 (PA2) */
 #define ADC_RESOLUTION 12
 #define ADC_GAIN ADC_GAIN_1
 #define ADC_REFERENCE ADC_REF_INTERNAL
