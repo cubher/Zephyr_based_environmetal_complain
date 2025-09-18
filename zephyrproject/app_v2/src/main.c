@@ -9,7 +9,7 @@
 /* === ADC Setup === */
 #define ADC_NODE DT_NODELABEL(adc1)   /* Use ADC1 */
 #define ADC_CHANNEL_SMOKE 0                 /* channel 0 (PA0) */
-#define ADC_CHANNEL_FLAME 4               /* channel 4 (PA2) */
+// #define ADC_CHANNEL_FLAME 4               /* channel 4 (PA2) */
 #define ADC_RESOLUTION 12
 #define ADC_GAIN ADC_GAIN_1
 #define ADC_REFERENCE ADC_REF_INTERNAL
@@ -18,7 +18,13 @@
 /* creating device node for adc pins*/
 static const struct device *adc_dev = DEVICE_DT_GET(ADC_NODE);
 static int16_t smoke_buffer;
-static int16_t flame_buffer;
+//static int16_t flame_buffer;
+
+/* Digital pin setup for flame sensor */
+
+// TODO: check if GPIO_ACTIVE_LOW is correct
+#define DIGITAL_FLAME_NODE DT_NODELABEL(input)
+static const struct gpio_dt_spec flame = GPIO_DT_SPEC_GET(DIGITAL_FLAME_NODE, gpios);
 
 /* === LED Setup (green LD2) === */
 #define LED_NODE DT_ALIAS(led0)
@@ -28,7 +34,7 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 #define SMOKE_THRESHOLD 1500
 
 /* Threshold for flame*/
-#define FLAME_THRESHOLD 800
+// #define FLAME_THRESHOLD 800
 
 /* ADC channel (pin) config */
 static const struct adc_channel_cfg smoke_cfg = {
@@ -37,13 +43,14 @@ static const struct adc_channel_cfg smoke_cfg = {
     .acquisition_time = ADC_ACQUISITION_TIME,
     .channel_id       = ADC_CHANNEL_SMOKE,
 };
-
+/*
 static const struct adc_channel_cfg flame_cfg = {
     .gain             = ADC_GAIN,
     .reference        = ADC_REFERENCE,
     .acquisition_time = ADC_ACQUISITION_TIME,
     .channel_id       = ADC_CHANNEL_FLAME,
 };
+*/
 
 /* Read ADC value for smoke*/
 void smoke_thread(void *arg1, void *arg2, void *arg3)
@@ -72,8 +79,31 @@ void smoke_thread(void *arg1, void *arg2, void *arg3)
     }
 }
 
-/* Read ADC value for fire*/
+/* Read Digital value for fire*/
 void flame_thread(void *arg1, void *arg2, void *arg3)
+{
+    int val ;
+    if (!gpio_is_ready_dt(&flame)) {
+        printk("Error: GPIO device not ready\n");
+        return;
+    }
+    printk("Flame sensor ready on PA10 (D2)\n");
+        
+    while (1) {
+        val = gpio_pin_get_dt(&flame);
+        if (val < 0) {
+            printk("Error %d: failed to read pin\n", val);
+        } else if (val == 1) {
+            printk("Fire detected!\n");
+        } else {
+            printk("No fire.\n");
+        }
+    k_msleep(1000); /* check every 1000 ms */
+    } 
+}   
+
+/* Read ADC value for fire*/
+/* void flame_thread(void *arg1, void *arg2, void *arg3)
 {
     struct adc_sequence sequence = {
         .channels = BIT(ADC_CHANNEL_FLAME),
@@ -97,6 +127,7 @@ void flame_thread(void *arg1, void *arg2, void *arg3)
     }
 }
 
+*/
 /* Thread stacks */
 K_THREAD_STACK_DEFINE(smoke_stack, STACK_SIZE);
 K_THREAD_STACK_DEFINE(flame_stack, STACK_SIZE);
@@ -112,13 +143,19 @@ int main(void)
     }
 
     adc_channel_setup(adc_dev, &smoke_cfg);
-    adc_channel_setup(adc_dev, &flame_cfg);
+    // adc_channel_setup(adc_dev, &flame_cfg);
 
     if (!gpio_is_ready_dt(&led)) {
         printk("LED not ready\n");
         return 0;
     }
     gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
+    int ret = gpio_pin_configure_dt(&flame, GPIO_INPUT);
+
+    if (ret != 0) {
+        printk("Error %d: failed to configure %s pin %d\n", ret, flame.port->name, flame.pin);
+        return;
+    }
 
     printk("Starting threads for smoke and flame sensors...\n");
 
