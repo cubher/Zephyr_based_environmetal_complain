@@ -1,0 +1,17 @@
+&adc1 {
+    pinctrl-0 = <&adc1_in0_pa0 &adc1_in4_pa4>;
+    pinctrl-names = "default";
+    status = "okay";
+};
+
+/ {
+    flame_sensor: flame_sensor {
+        compatible = "gpio-keys";
+        label = "Flame Sensor";
+
+        input: input {
+            gpios = <&gpioa 10 GPIO_ACTIVE_LOW>;
+            label = "Flame Input";
+        };
+    };
+};
