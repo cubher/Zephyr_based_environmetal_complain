@@ -15,3 +15,15 @@
         };
     };
 };
+
+&usart2 {
+	pinctrl-0 = <&usart2_tx_pa2 &usart2_rx_pa3>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+
+    esp8266 {
+		compatible = "espressif,esp-at";
+		status = "okay";
+	};
+};

@@ -1,3 +1,12 @@
+/* src/main.c
+ * Smoke -> POST to www.google.com
+ * Flame -> POST to www.yahoo.com
+ *
+ * Requirements:
+ *  - ESP-01 (ESP8266) TX/RX wired to Nucleo USART2 (PA2 TX, PA3 RX)
+ *  - Set SSID/PASS below
+ */
+
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/drivers/gpio.h>
@@ -11,7 +20,7 @@
 #define SMOKE_PRIORITY 5
 #define FLAME_PRIORITY 4
 
-/* === WiFi credentials === */
+/* === WiFi credentials (replace) === */
 #define WIFI_SSID "Swamp"
 #define WIFI_PASS "doodle123"
 
@@ -49,16 +58,6 @@ static const struct adc_channel_cfg smoke_cfg = {
 #define UART_NODE DT_NODELABEL(usart2)
 static const struct device *uart_dev = DEVICE_DT_GET(UART_NODE);
 
-/* Configure UART parameters */
-struct uart_config uart_cfg = {
-    .baudrate = 115200,
-    .parity = UART_CFG_PARITY_NONE,
-    .stop_bits = UART_CFG_STOP_BITS_1,
-    .data_bits = UART_CFG_DATA_BITS_8,
-    .flow_ctrl = UART_CFG_FLOW_CTRL_NONE,
-};
-
-
 /* Thread stacks */
 K_THREAD_STACK_DEFINE(smoke_stack, STACK_SIZE);
 K_THREAD_STACK_DEFINE(flame_stack, STACK_SIZE);
@@ -85,11 +84,9 @@ static void esp_send_cmd(const char *cmd)
     printk(">>>ESP: %s\n", cmd);
 }
 
-/* =================== MODIFIED esp_read_response ===================
- * Read available characters from UART into buffer with timeout_ms (non-blocking poll). 
+/* Read available characters from UART into buffer with timeout_ms (non-blocking poll). 
  * Returns number of bytes read (>=0) or -1 on error.
  * Caller must hold mutex if desired.
- * Now prints every response automatically.
  */
 static int esp_read_response(char *buf, size_t buf_size, int timeout_ms)
 {
@@ -98,42 +95,31 @@ static int esp_read_response(char *buf, size_t buf_size, int timeout_ms)
     while (elapsed < timeout_ms && idx < buf_size - 1) {
         int c = uart_poll_in(uart_dev, (unsigned char *)&buf[idx]);
         if (c == 0) {
-            /* got one byte */
+            /* there's a byte in buf[idx] (uart_poll_in puts data via pointer) */
             idx++;
             continue;
         }
-        /* no data yet */
+        /* no data right now */
         k_msleep(10);
         elapsed += 10;
     }
     buf[idx] = '\0';
-
-    if (idx > 0) {
-        printk("<<<ESP: %s\n", buf);   /* <-- print raw response */
-    }
-
     return (int)idx;
 }
-/* ================================================================== */
 
 /* Wait for substring in response (simple helper). Returns true if found within timeout_ms. */
 static bool esp_expect(const char *needle, int timeout_ms)
 {
     char resp[256];
-    int elapsed = 0;
-
-    while (elapsed < timeout_ms) {
-        int len = esp_read_response(resp, sizeof(resp), 500);
-        if (len > 0) {
-            if (strstr(resp, needle) != NULL) {
-                return true;
-            }
+    int len = esp_read_response(resp, sizeof(resp), timeout_ms);
+    if (len > 0) {
+        printk("ESP resp: %s\n", resp);
+        if (strstr(resp, needle) != NULL) {
+            return true;
         }
-        elapsed += 500;
     }
     return false;
 }
-
 
 /* Initialize/Connect ESP to your WiFi hotspot */
 static bool esp_wifi_connect(void)
@@ -149,7 +135,7 @@ static bool esp_wifi_connect(void)
 
     /* Reset module */
     esp_send_cmd("AT+RST");
-    k_msleep(5000);
+    k_msleep(2000);
     /* Clear any startup lines */
     esp_read_response(buf, sizeof(buf), 500);
 
@@ -363,11 +349,6 @@ int main(void)
     /* UART init */
     if (!device_is_ready(uart_dev)) {
         printk("UART device not ready\n");
-        return 0;
-    }
-    ret = uart_configure(uart_dev, &uart_cfg);
-    if (ret) {
-        printk("UART config failed: %d\n", ret);
         return 0;
     }
 
