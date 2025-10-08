@@ -9,7 +9,7 @@
         compatible = "gpio-keys";
         label = "Flame Sensor";
 
-        input: input {
+        flame_input: flame_input {
             gpios = <&gpioa 10 GPIO_ACTIVE_LOW>;
             label = "Flame Input";
         };

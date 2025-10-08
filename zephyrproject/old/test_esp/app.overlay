@@ -1,0 +1,21 @@
+/ {
+    flame_sensor: flame_sensor {
+        compatible = "gpio-keys";
+        flame_input: flame_input {
+            gpios = <&gpioa 10 GPIO_ACTIVE_HIGH>;
+            label = "Flame Input";
+        };
+    };
+};
+
+/* USART3 for ESP8266 - PB10 (TX), PB11 (RX) */
+&usart3 {
+    pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
+    pinctrl-names = "default";
+    current-speed = <115200>;  // Initial baud rate
+    status = "okay";
+};
+
+&adc1 {
+    status = "okay";
+};

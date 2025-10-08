@@ -27,7 +27,7 @@ static const struct device *adc_dev = DEVICE_DT_GET(ADC_NODE);
 static int16_t smoke_buffer;
 
 /* Flame digital input */
-#define DIGITAL_FLAME_NODE DT_NODELABEL(input)
+#define DIGITAL_FLAME_NODE DT_NODELABEL(flame_input)
 static const struct gpio_dt_spec flame = GPIO_DT_SPEC_GET(DIGITAL_FLAME_NODE, gpios);
 
 /* LED */
@@ -329,6 +329,55 @@ void flame_thread(void *arg1, void *arg2, void *arg3)
     }
 }
 
+/* =================== Simple ESP8266 AT test ===================
+ * This sends "AT\r\n" once after boot and prints the response.
+ * Use this to verify that STM32 <-> ESP UART communication works.
+ */
+static void esp_at_test(void)
+{
+    char buf[128];
+
+    if (!device_is_ready(uart_dev)) {
+        printk("UART device not ready (esp_at_test)\n");
+        return;
+    }
+
+    k_mutex_lock(&uart_mutex, K_FOREVER);
+
+    /* Send plain AT command with CRLF */
+    uart_send_str("AT");
+    uart_poll_out(uart_dev, '\r');
+    uart_poll_out(uart_dev, '\n');
+    printk(">>> Sent AT test command\n");
+
+    /* Read back response (1 second timeout) */
+    int len = esp_read_response(buf, sizeof(buf), 1000);
+    if (len > 0) {
+        printk("<<< AT test response: %s\n", buf);
+    } else {
+        printk("<<< No AT test response received\n");
+    }
+
+    k_mutex_unlock(&uart_mutex);
+}
+/* ============================================================= */
+
+static void esp_at_sniff(void)
+{
+    char c;
+    printk("=== ESP Sniff for 5s ===\n");
+    int elapsed = 0;
+    while (elapsed < 5000) {
+        if (uart_poll_in(uart_dev, (unsigned char *)&c) == 0) {
+            printk("%c", c);
+        } else {
+            k_msleep(10);
+            elapsed += 10;
+        }
+    }
+    printk("\n=== Sniff end ===\n");
+}
+
 int main(void)
 {
     int ret;
@@ -372,6 +421,11 @@ int main(void)
     }
 
     printk("Initializing ESP and connecting to WiFi...\n");
+
+    /* Quick AT test before WiFi connect */
+    esp_at_test();
+    esp_at_sniff();
+
     if (!esp_wifi_connect()) {
         printk("Failed to connect ESP to WiFi. Check credentials and wiring.\n");
         /* continue anyway — threads will attempt posts but likely fail */
