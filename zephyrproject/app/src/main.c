@@ -66,7 +66,7 @@ struct k_thread smoke_tid;
 struct k_thread flame_tid;
 
 /* Mutex to guard UART/ESP access so threads don't interleave AT commands */
-// static struct k_mutex uart_mutex;
+static struct k_mutex uart_mutex;
 
 /* Small helper: poll-out a zero-terminated string */
 static void uart_send_str(const char *str)
@@ -145,7 +145,7 @@ static bool esp_wifi_connect(void)
         return false;
     }
 
-    // k_mutex_lock(&uart_mutex, K_FOREVER);
+    k_mutex_lock(&uart_mutex, K_FOREVER);
 
     /* Reset module */
     esp_send_cmd("AT+CWQAP");
@@ -167,7 +167,7 @@ static bool esp_wifi_connect(void)
     bool ok = esp_expect("WIFI CONNECTED", 10000) || esp_expect("OK", 10000);
     if (!ok) {
         printk("ESP WiFi join failed\n");
-        // k_mutex_unlock(&uart_mutex);
+        k_mutex_unlock(&uart_mutex);
         return false;
     }
 
@@ -187,66 +187,66 @@ static bool esp_wifi_connect(void)
  *
  * Returns 0 on (attempted) send, -1 on error.
  */
-// static int esp_http_post(const char *host, int port, const char *path, const char *payload)
-// {
-//     char cmd[128];
-//     char http_req[512];
-//     int payload_len = strlen(payload);
+static int esp_http_post(const char *host, int port, const char *path, const char *payload)
+{
+    char cmd[128];
+    char http_req[512];
+    int payload_len = strlen(payload);
 
-//     k_mutex_lock(&uart_mutex, K_FOREVER);
+    k_mutex_lock(&uart_mutex, K_FOREVER);
 
-//     /* Start TCP connection */
-//     snprintf(cmd, sizeof(cmd), "AT+CIPSTART=\"TCP\",\"%s\",%d", host, port);
-//     esp_send_cmd(cmd);
+    /* Start TCP connection */
+    snprintf(cmd, sizeof(cmd), "AT+CIPSTART=\"TCP\",\"%s\",%d", host, port);
+    esp_send_cmd(cmd);
 
-//     /* wait for CONNECT or OK */
-//     if (!esp_expect("CONNECT", 5000) && !esp_expect("OK", 5000)) {
-//         printk("CIPSTART failed for %s\n", host);
-//         /* attempt to close any partial connection */
-//         esp_send_cmd("AT+CIPCLOSE");
-//         k_mutex_unlock(&uart_mutex);
-//         return -1;
-//     }
-//     k_msleep(200);
+    /* wait for CONNECT or OK */
+    if (!esp_expect("CONNECT", 5000) && !esp_expect("OK", 5000)) {
+        printk("CIPSTART failed for %s\n", host);
+        /* attempt to close any partial connection */
+        esp_send_cmd("AT+CIPCLOSE");
+        k_mutex_unlock(&uart_mutex);
+        return -1;
+    }
+    k_msleep(200);
 
-//     /* Build HTTP request */
-//     snprintf(http_req, sizeof(http_req),
-//              "POST %s HTTP/1.1\r\n"
-//              "Host: %s\r\n"
-//              "Content-Type: application/x-www-form-urlencoded\r\n"
-//              "Content-Length: %d\r\n\r\n"
-//              "%s",
-//              path, host, payload_len, payload);
+    /* Build HTTP request */
+    snprintf(http_req, sizeof(http_req),
+             "POST %s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "Content-Type: application/x-www-form-urlencoded\r\n"
+             "Content-Length: %d\r\n\r\n"
+             "%s",
+             path, host, payload_len, payload);
 
-//     /* Tell ESP how many bytes we will send */
-//     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", (int)strlen(http_req));
-//     esp_send_cmd(cmd);
+    /* Tell ESP how many bytes we will send */
+    snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", (int)strlen(http_req));
+    esp_send_cmd(cmd);
 
-//     /* ESP will respond with '>' when ready to receive; wait 2s */
-//     if (!esp_expect(">", 3000)) {
-//         printk("CIPSEND prompt not received\n");
-//         esp_send_cmd("AT+CIPCLOSE");
-//         k_mutex_unlock(&uart_mutex);
-//         return -1;
-//     }
+    /* ESP will respond with '>' when ready to receive; wait 2s */
+    if (!esp_expect(">", 3000)) {
+        printk("CIPSEND prompt not received\n");
+        esp_send_cmd("AT+CIPCLOSE");
+        k_mutex_unlock(&uart_mutex);
+        return -1;
+    }
 
-//     /* Send the actual HTTP request */
-//     uart_send_str(http_req);
-//     /* some firmwares need CRLF at end */
-//     uart_poll_out(uart_dev, '\r');
-//     uart_poll_out(uart_dev, '\n');
+    /* Send the actual HTTP request */
+    uart_send_str(http_req);
+    /* some firmwares need CRLF at end */
+    uart_poll_out(uart_dev, '\r');
+    uart_poll_out(uart_dev, '\n');
 
-//     /* Wait for "SEND OK" or server response (short timeout) */
-//     esp_read_response(cmd, sizeof(cmd), 3000);
-//     printk("HTTP send response: %s\n", cmd);
+    /* Wait for "SEND OK" or server response (short timeout) */
+    esp_read_response(cmd, sizeof(cmd), 3000);
+    printk("HTTP send response: %s\n", cmd);
 
-//     /* Close connection */
-//     esp_send_cmd("AT+CIPCLOSE");
-//     k_msleep(200);
+    /* Close connection */
+    esp_send_cmd("AT+CIPCLOSE");
+    k_msleep(200);
 
-//     k_mutex_unlock(&uart_mutex);
-//     return 0;
-// }
+    k_mutex_unlock(&uart_mutex);
+    return 0;
+}
 
 /* Smoke thread: reads analog smoke sensor, toggles LED and sends POST to google */
 void smoke_thread(void *arg1, void *arg2, void *arg3)
@@ -332,7 +332,7 @@ int main(void)
 {
     int ret;
 
-    // k_mutex_init(&uart_mutex);
+    k_mutex_init(&uart_mutex);
 
     /* ADC init */
     if (!device_is_ready(adc_dev)) {
