@@ -1,0 +1,24 @@
+&adc1 {
+    pinctrl-0 = <&adc1_in0_pa0 &adc1_in4_pa4>;
+    pinctrl-names = "default";
+    status = "okay";
+};
+
+/ {
+    flame_sensor: flame_sensor {
+        compatible = "gpio-keys";
+        label = "Flame Sensor";
+
+        flame_input: flame_input {
+            gpios = <&gpioa 10 GPIO_ACTIVE_LOW>;
+            label = "Flame Input";
+        };
+    };
+};
+
+&usart1 {
+    status = "okay";
+    current-speed = <115200>;
+    pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
+    pinctrl-names = "default";
+};
