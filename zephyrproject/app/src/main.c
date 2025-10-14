@@ -15,6 +15,10 @@
 #define WIFI_SSID "Swamp"
 #define WIFI_PASS "doodle123"
 
+/* === Thinkspeak api === */
+
+#define THINKSPEAK_API "https://api.thingspeak.com/update?api_key=K72E1D4G1GFUC4VZ&Air_Qual=0&flame=0"
+
 /* === ADC Setup === */
 #define ADC_NODE DT_NODELABEL(adc1)   /* Use ADC1 */
 #define ADC_CHANNEL_SMOKE 0           /* channel 0 (PA0) */
@@ -179,15 +183,9 @@ static bool esp_wifi_connect(void)
     return true;
 }
 
-/* Send an HTTP POST via ESP (blocking, protected by mutex) 
- * host: e.g. "www.google.com"
- * port: 80
- * path: "/"
- * payload: body string
- *
- * Returns 0 on (attempted) send, -1 on error.
- */
-static int esp_http_post(const char *host, int port, const char *path, const char *payload)
+/* Send an HTTP POST via ESP (blocking, protected by mutex) */
+
+static int esp_http_post(const char *host, int port, const char *payload)
 {
     char cmd[128];
     char http_req[512];
@@ -200,36 +198,33 @@ static int esp_http_post(const char *host, int port, const char *path, const cha
     esp_send_cmd(cmd);
 
     /* wait for CONNECT or OK */
-    if (!esp_expect("CONNECT", 5000) && !esp_expect("OK", 5000)) {
+    /* if (!esp_expect("CONNECT", 5000) && !esp_expect("OK", 5000)) {
         printk("CIPSTART failed for %s\n", host);
-        /* attempt to close any partial connection */
+        // attempt to close any partial connection
         esp_send_cmd("AT+CIPCLOSE");
         k_mutex_unlock(&uart_mutex);
         return -1;
-    }
-    k_msleep(200);
+    } */
+    k_msleep(5000);
 
     /* Build HTTP request */
     snprintf(http_req, sizeof(http_req),
-             "POST %s HTTP/1.1\r\n"
-             "Host: %s\r\n"
-             "Content-Type: application/x-www-form-urlencoded\r\n"
-             "Content-Length: %d\r\n\r\n"
-             "%s",
-             path, host, payload_len, payload);
+             "GET /update?api_key=K72E1D4G1GFUC4VZ&%s HTTP/1.1\r\n"
+             "Host: %s\r\n",
+             payload,host);
 
     /* Tell ESP how many bytes we will send */
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", (int)strlen(http_req));
     esp_send_cmd(cmd);
 
     /* ESP will respond with '>' when ready to receive; wait 2s */
-    if (!esp_expect(">", 3000)) {
-        printk("CIPSEND prompt not received\n");
-        esp_send_cmd("AT+CIPCLOSE");
-        k_mutex_unlock(&uart_mutex);
-        return -1;
-    }
-
+    // if (!esp_expect(">", 3000)) {
+    //     printk("CIPSEND prompt not received\n");
+    //     esp_send_cmd("AT+CIPCLOSE");
+    //     k_mutex_unlock(&uart_mutex);
+    //     return -1;
+    // }
+    k_msleep(2000);
     /* Send the actual HTTP request */
     uart_send_str(http_req);
     /* some firmwares need CRLF at end */
@@ -280,9 +275,9 @@ void smoke_thread(void *arg1, void *arg2, void *arg3)
 
         /* Prepare payload and post to Google (port 80, path /) */
         char payload[64];
-        snprintf(payload, sizeof(payload), "Smoke=%d", smoke_buffer);
+        snprintf(payload, sizeof(payload), "Air_Quality=%d", smoke_buffer);
 
-        if (esp_http_post("www.google.com", 80, "/", payload) == 0) {
+        if (esp_http_post("api.thingspeak.com", 80, payload) == 0) {
             printk("Smoke posted to Google (attempt)\n");
         } else {
             printk("Failed posting smoke to Google\n");
@@ -314,7 +309,7 @@ void flame_thread(void *arg1, void *arg2, void *arg3)
             char payload[32];
             snprintf(payload, sizeof(payload), "Flame=%d", 1);
 
-            if (esp_http_post("www.yahoo.com", 80, "/", payload) == 0) {
+            if (esp_http_post("api.thingspeak.com", 80, payload) == 0) {
                 printk("Flame posted to Yahoo (attempt)\n");
             } else {
                 printk("Failed posting flame to Yahoo\n");
@@ -377,13 +372,13 @@ int main(void)
     }
 
     printk("Starting threads for smoke and flame sensors...\n");
-    /* k_thread_create(&smoke_tid, smoke_stack, STACK_SIZE,
+    k_thread_create(&smoke_tid, smoke_stack, STACK_SIZE,
                     smoke_thread, NULL, NULL, NULL,
-                    SMOKE_PRIORITY, 0, K_NO_WAIT);*/
+                    SMOKE_PRIORITY, 0, K_NO_WAIT);
 
-    /* k_thread_create(&flame_tid, flame_stack, STACK_SIZE,
+    k_thread_create(&flame_tid, flame_stack, STACK_SIZE,
                     flame_thread, NULL, NULL, NULL,
-                    FLAME_PRIORITY, 0, K_NO_WAIT);*/
+                    FLAME_PRIORITY, 0, K_NO_WAIT);
 
     return 0;
 }
