@@ -184,7 +184,6 @@ static int esp_http_post(const char *host, int port, const char *payload)
 {
     char cmd[128];
     char http_req[512];
-    int payload_len = strlen(payload);
 
     k_mutex_lock(&uart_mutex, K_FOREVER);
 
@@ -303,6 +302,7 @@ void flame_thread(void *arg1, void *arg2, void *arg3)
 
     while (1) {
         val = gpio_pin_get_dt(&flame);
+        printk("Flame sensor reading: %d\n", val);
         if (val < 0) {
             printk("Error %d: failed to read flame pin\n", val);
         } else if (val == 1) {
