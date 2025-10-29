@@ -11,14 +11,6 @@
 #define SMOKE_PRIORITY 5
 #define FLAME_PRIORITY 4
 
-/* === WiFi credentials === */
-#define WIFI_SSID "Swamp"
-#define WIFI_PASS "doodle123"
-
-/* === Thinkspeak api === */
-
-#define THINKSPEAK_API "https://api.thingspeak.com/update?api_key=K72E1D4G1GFUC4VZ&Air_Qual=0&flame=0"
-
 /* === ADC Setup === */
 #define ADC_NODE DT_NODELABEL(adc1)   /* Use ADC1 */
 #define ADC_CHANNEL_SMOKE 0           /* channel 0 (PA0) */
@@ -62,6 +54,9 @@ struct uart_config uart_cfg = {
     .flow_ctrl = UART_CFG_FLOW_CTRL_NONE,
 };
 
+/* === WiFi credentials === */
+#define WIFI_SSID "Swamp"
+#define WIFI_PASS "doodle123"
 
 /* Thread stacks */
 K_THREAD_STACK_DEFINE(smoke_stack, STACK_SIZE);
@@ -193,6 +188,9 @@ static int esp_http_post(const char *host, int port, const char *payload)
 
     k_mutex_lock(&uart_mutex, K_FOREVER);
 
+    snprintf(cmd, sizeof(cmd), "AT+CIPMUX=0");
+    esp_send_cmd(cmd);
+
     /* Start TCP connection */
     snprintf(cmd, sizeof(cmd), "AT+CIPSTART=\"TCP\",\"%s\",%d", host, port);
     esp_send_cmd(cmd);
@@ -275,7 +273,7 @@ void smoke_thread(void *arg1, void *arg2, void *arg3)
 
         /* Prepare payload and post to Google (port 80, path /) */
         char payload[64];
-        snprintf(payload, sizeof(payload), "Air_Quality=%d", smoke_buffer);
+        snprintf(payload, sizeof(payload), "field1=%d", smoke_buffer);
 
         if (esp_http_post("api.thingspeak.com", 80, payload) == 0) {
             printk("Smoke posted to Google (attempt)\n");
@@ -313,7 +311,7 @@ void flame_thread(void *arg1, void *arg2, void *arg3)
             
             /* Send to Yahoo */
             char payload[32];
-            snprintf(payload, sizeof(payload), "Flame=%d", 1);
+            snprintf(payload, sizeof(payload), "field2=%d", 1);
 
             if (esp_http_post("api.thingspeak.com", 80, payload) == 0) {
                 printk("Flame posted to Yahoo (attempt)\n");
