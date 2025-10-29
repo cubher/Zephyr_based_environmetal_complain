@@ -209,9 +209,8 @@ static int esp_http_post(const char *host, int port, const char *payload)
 
     /* Build HTTP request */
     snprintf(http_req, sizeof(http_req),
-             "GET /update?api_key=K72E1D4G1GFUC4VZ&%s HTTP/1.1\r\n"
-             "Host: %s\r\n",
-             payload,host);
+             "GET /update?api_key=K72E1D4G1GFUC4VZ&%s\r\n",
+             payload);
 
     /* Tell ESP how many bytes we will send */
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", (int)strlen(http_req));
@@ -226,6 +225,7 @@ static int esp_http_post(const char *host, int port, const char *payload)
     // }
     k_msleep(2000);
     /* Send the actual HTTP request */
+    printk(">>>http request \n %s",http_req);
     uart_send_str(http_req);
     /* some firmwares need CRLF at end */
     uart_poll_out(uart_dev, '\r');
@@ -282,6 +282,12 @@ void smoke_thread(void *arg1, void *arg2, void *arg3)
         } else {
             printk("Failed posting smoke to Google\n");
         }
+
+        // if (esp_http_post("10.183.171.159", 80, payload) == 0) {
+        //     printk("Smoke posted to Google (attempt)\n");
+        // } else {
+        //     printk("Failed posting smoke to Google\n");
+        // }
 
         k_msleep(5000); /* send every 5s */
     }

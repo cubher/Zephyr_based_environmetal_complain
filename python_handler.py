@@ -1,53 +1,34 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import logging
-import time
+from urllib.parse import urlparse, parse_qs
 
-class RequestLoggerHandler(BaseHTTPRequestHandler):
-    def _read_body(self):
-        length = self.headers.get('Content-Length')
-        if length:
-            try:
-                length = int(length)
-                time.sleep(0.1)  # give client time to finish sending
-                return self.rfile.read(length).decode('utf-8', errors='replace')
-            except Exception as e:
-                return f"[Error reading body: {e}]"
-        return ""
-
-    def _log_request(self):
-        client_ip, _ = self.client_address
-        logging.info(f"\n===== New {self.command} Request from {client_ip} =====")
-        logging.info(f"Path: {self.path}")
-        logging.info(f"Headers:\n{self.headers}")
-
-        body = self._read_body()
-        if body.strip():
-            logging.info(f"Body:\n{body}")
-        else:
-            logging.info("Body: [empty or not received]")
-
-        # Send response
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/plain')
-        self.send_header('Connection', 'close')  # force close after response
-        self.end_headers()
-        self.wfile.write(b"OK\n")
-
-    def do_POST(self):
-        self._log_request()
-
+class SimpleGETHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self._log_request()
+        # Parse URL and query
+        parsed_url = urlparse(self.path)
+        query_components = parse_qs(parsed_url.query)
 
-    # silence default console spam
+        print("\n===== New GET Request =====")
+        print(f"Path: {parsed_url.path}")
+        print(f"Query: {query_components}")
+        print(f"Client IP: {self.client_address[0]}")
+        print(f"Headers:\n{self.headers}")
+
+        # Respond to client
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"GET request received successfully!\n")
+
+    # Disable logging to console by BaseHTTPRequestHandler
     def log_message(self, format, *args):
         return
 
+def run_server(host="0.0.0.0", port=80):
+    server_address = (host, port)
+    httpd = HTTPServer(server_address, SimpleGETHandler)
+    print(f"✅ HTTP GET Server running on http://{host}:{port}")
+    print("Press Ctrl+C to stop.\n")
+    httpd.serve_forever()
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-    server = HTTPServer(('0.0.0.0', 80), RequestLoggerHandler)
-    print("✅ HTTP Logger Server running on port 80...")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nServer stopped manually.")
+    run_server()
