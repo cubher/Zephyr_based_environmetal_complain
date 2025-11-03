@@ -180,7 +180,7 @@ static bool esp_wifi_connect(void)
 
 /* Send an HTTP POST via ESP (blocking, protected by mutex) */
 
-static int esp_http_post(const char *host, int port, const char *payload)
+static int esp_http_post(const char *host, int port, const char *payload,int api)
 {
     char cmd[128];
     char http_req[512];
@@ -203,10 +203,11 @@ static int esp_http_post(const char *host, int port, const char *payload)
         return -1;
     } */
     k_msleep(5000);
-
+    if(api ==1)
+    {
     /* Build HTTP request */
     snprintf(http_req, sizeof(http_req),
-             "GET /update?api_key=K72E1D4G1GFUC4VZ&%s\r\n",
+             "GET /iot_monitor/api/air.php?api_key=K72E1D4G1GFUC4VZ&value=%s\r\n",
              payload);
 
     /* Tell ESP how many bytes we will send */
@@ -235,6 +236,45 @@ static int esp_http_post(const char *host, int port, const char *payload)
     /* Close connection */
     esp_send_cmd("AT+CIPCLOSE");
     k_msleep(200);
+    }
+    else if(api ==2)
+    {
+    /* Build HTTP request */
+    snprintf(http_req, sizeof(http_req),
+             "GET /iot_monitor/api/flame.php?api_key=K72E1D4G1GFUC4VZ&status=%s\r\n",
+             payload);
+
+    /* Tell ESP how many bytes we will send */
+    snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", (int)strlen(http_req));
+    esp_send_cmd(cmd);
+
+    /* ESP will respond with '>' when ready to receive; wait 2s */
+    // if (!esp_expect(">", 3000)) {
+    //     printk("CIPSEND prompt not received\n");
+    //     esp_send_cmd("AT+CIPCLOSE");
+    //     k_mutex_unlock(&uart_mutex);
+    //     return -1;
+    // }
+    k_msleep(2000);
+    /* Send the actual HTTP request */
+    printk(">>>http request \n %s",http_req);
+    uart_send_str(http_req);
+    /* some firmwares need CRLF at end */
+    uart_poll_out(uart_dev, '\r');
+    uart_poll_out(uart_dev, '\n');
+
+    /* Wait for "SEND OK" or server response (short timeout) */
+    esp_read_response(cmd, sizeof(cmd), 3000);
+    printk("HTTP send response: %s\n", cmd);
+
+    /* Close connection */
+    esp_send_cmd("AT+CIPCLOSE");
+    k_msleep(200);
+    }
+    else
+    {
+        printk(" Invalid API selection\n");
+    }
 
     k_mutex_unlock(&uart_mutex);
     return 0;
@@ -272,9 +312,9 @@ void smoke_thread(void *arg1, void *arg2, void *arg3)
 
         /* Prepare payload and post to Google (port 80, path /) */
         char payload[64];
-        snprintf(payload, sizeof(payload), "field1=%d", smoke_buffer);
+        snprintf(payload, sizeof(payload), "%d", smoke_buffer);
 
-        if (esp_http_post("api.thingspeak.com", 80, payload) == 0) {
+        if (esp_http_post("10.181.159.160", 8080, payload,1) == 0) {
             printk("Smoke posted to Google (attempt)\n");
         } else {
             printk("Failed posting smoke to Google\n");
@@ -311,9 +351,9 @@ void flame_thread(void *arg1, void *arg2, void *arg3)
             
             /* Send to Yahoo */
             char payload[32];
-            snprintf(payload, sizeof(payload), "field2=%d", 1);
+            snprintf(payload, sizeof(payload), "%d", 1);
 
-            if (esp_http_post("api.thingspeak.com", 80, payload) == 0) {
+            if (esp_http_post("10.181.159.160", 8080, payload,2) == 0) {
                 printk("Flame posted to Yahoo (attempt)\n");
             } else {
                 printk("Failed posting flame to Yahoo\n");
