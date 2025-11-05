@@ -1,5 +1,5 @@
 &adc1 {
-    pinctrl-0 = <&adc1_in0_pa0 &adc1_in4_pa4>;
+    pinctrl-0 = <&adc1_in0_pa0>;
     pinctrl-names = "default";
     status = "okay";
 };
@@ -10,7 +10,7 @@
         label = "Flame Sensor";
 
         flame_input: flame_input {
-            gpios = <&gpioa 10 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            gpios = <&gpiob 10 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
             label = "Flame Input";
         };
     };
