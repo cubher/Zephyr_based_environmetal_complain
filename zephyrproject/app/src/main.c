@@ -189,7 +189,8 @@ static int esp_http_post(const char *host, int port, const char *payload,int api
 
     snprintf(cmd, sizeof(cmd), "AT+CIPMUX=0");
     esp_send_cmd(cmd);
-
+    
+    k_msleep(2000);
     /* Start TCP connection */
     snprintf(cmd, sizeof(cmd), "AT+CIPSTART=\"TCP\",\"%s\",%d", host, port);
     esp_send_cmd(cmd);
@@ -202,7 +203,7 @@ static int esp_http_post(const char *host, int port, const char *payload,int api
         k_mutex_unlock(&uart_mutex);
         return -1;
     } */
-    k_msleep(5000);
+    k_msleep(10000);
     if(api ==1)
     {
     /* Build HTTP request */
@@ -213,6 +214,7 @@ static int esp_http_post(const char *host, int port, const char *payload,int api
     /* Tell ESP how many bytes we will send */
     snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d", (int)strlen(http_req));
     esp_send_cmd(cmd);
+    k_msleep(2000);
 
     /* ESP will respond with '>' when ready to receive; wait 2s */
     // if (!esp_expect(">", 3000)) {
@@ -221,14 +223,13 @@ static int esp_http_post(const char *host, int port, const char *payload,int api
     //     k_mutex_unlock(&uart_mutex);
     //     return -1;
     // }
-    k_msleep(2000);
     /* Send the actual HTTP request */
     printk(">>>http request \n %s",http_req);
     uart_send_str(http_req);
     /* some firmwares need CRLF at end */
     uart_poll_out(uart_dev, '\r');
     uart_poll_out(uart_dev, '\n');
-
+    k_msleep(1000);
     /* Wait for "SEND OK" or server response (short timeout) */
     esp_read_response(cmd, sizeof(cmd), 3000);
     printk("HTTP send response: %s\n", cmd);

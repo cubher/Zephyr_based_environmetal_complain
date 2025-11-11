@@ -2,66 +2,46 @@
 // index.php
 require_once 'db.php';
 header('Content-Type: text/html; charset=utf-8');
+// this page mixes PHP + Bootstrap + Chart.js + small AJAX to fetch data
 
+// fetch page param
 $page = $_GET['page'] ?? 'air';
 
-// =============================
-// AJAX DATA ENDPOINTS
-// =============================
+// For some AJAX endpoints inside the dashboard, we'll provide simple JSON endpoints (no api_key required for read).
 if (isset($_GET['fetch']) && $_GET['fetch'] === 'air_recent') {
-    header('Content-Type: application/json');
-    $limit = 50;
-    $stmt = $pdo->prepare("SELECT id, value, recorded_at 
-                           FROM air_quality 
-                           ORDER BY recorded_at DESC 
-                           LIMIT :l");
+    // return last 200 air readings
+    //header('Content-Type: application/json');
+    $limit = 200;
+    $stmt = $pdo->prepare("SELECT id, value, recorded_at FROM air_quality ORDER BY recorded_at DESC LIMIT :l");
     $stmt->bindValue(':l', (int)$limit, PDO::PARAM_INT);
     $stmt->execute();
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $stmt->fetchAll();
+    // return in chronological order
     echo json_encode(array_reverse($rows));
     exit;
 }
-
 if (isset($_GET['fetch']) && $_GET['fetch'] === 'flame_recent') {
-    header('Content-Type: application/json');
-    $limit = 50;
-    $stmt = $pdo->prepare("SELECT id, status, recorded_at 
-                           FROM flame_events 
-                           ORDER BY recorded_at DESC 
-                           LIMIT :l");
+    //header('Content-Type: application/json');
+    $limit = 200;
+    $stmt = $pdo->prepare("SELECT id, status, recorded_at FROM flame_events ORDER BY recorded_at DESC LIMIT :l");
     $stmt->bindValue(':l', (int)$limit, PDO::PARAM_INT);
     $stmt->execute();
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(array_reverse($rows));
+    $rows = $stmt->fetchAll();
+    echo json_encode($rows);
     exit;
 }
 
-if (isset($_GET['fetch']) && $_GET['fetch'] === 'cow_images') {
-    header('Content-Type: application/json');
-    $stmt = $pdo->query("
-        SELECT id, value AS image_base64, recorded_at, image_path, source
-        FROM cow_detections
-        ORDER BY recorded_at DESC
-        LIMIT 3
-    ");
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-    exit;
-}
-
-// =============================
-// HELPER FUNCTIONS
-// =============================
+// helper to get latest air value for display
 function get_latest_air($pdo)
 {
     $stmt = $pdo->query("SELECT value, recorded_at FROM air_quality ORDER BY recorded_at DESC LIMIT 1");
     return $stmt->fetch();
 }
 
+// helper to check if any flame detected in last N minutes
 function flame_in_last_minutes($pdo, $minutes = 10)
 {
-    $stmt = $pdo->prepare("SELECT COUNT(*) as c FROM flame_events 
-                           WHERE status = 1 
-                           AND recorded_at >= (NOW() - INTERVAL :m MINUTE)");
+    $stmt = $pdo->prepare("SELECT COUNT(*) as c FROM flame_events WHERE status = 1 AND recorded_at >= (NOW() - INTERVAL :m MINUTE)");
     $stmt->bindValue(':m', (int)$minutes, PDO::PARAM_INT);
     $stmt->execute();
     $row = $stmt->fetch();
@@ -70,6 +50,7 @@ function flame_in_last_minutes($pdo, $minutes = 10)
 
 $latest = get_latest_air($pdo);
 $recentFlame = flame_in_last_minutes($pdo, 30);
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -79,6 +60,7 @@ $recentFlame = flame_in_last_minutes($pdo, 30);
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>IoT Monitor - Air & Flame</title>
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 	<style>
 		body {
 			padding-top: 70px;
@@ -102,14 +84,10 @@ $recentFlame = flame_in_last_minutes($pdo, 30);
 				<ul class="navbar-nav me-auto">
 					<li class="nav-item"><a
 							class="nav-link <?= $page === 'air' ? 'active' : '' ?>"
-							href="?page=air">Air
-							Quality</a></li>
+							href="?page=air">Air Quality</a></li>
 					<li class="nav-item"><a
 							class="nav-link <?= $page === 'flame' ? 'active' : '' ?>"
 							href="?page=flame">Flame Events</a></li>
-					<li class="nav-item"><a
-							class="nav-link <?= $page === 'cow' ? 'active' : '' ?>"
-							href="?page=cow">Roadside Cow</a></li>
 					<li class="nav-item"><a class="nav-link" href="README.txt" target="_blank">Readme</a></li>
 				</ul>
 				<span class="navbar-text text-muted">Local XAMPP / MySQL</span>
@@ -120,31 +98,25 @@ $recentFlame = flame_in_last_minutes($pdo, 30);
 	<div class="container">
 		<?php if ($recentFlame): ?>
 		<div class="alert alert-danger d-flex align-items-center" role="alert">
-			Flame detected in the last 30 minutes — check flame events page for details.
+			<svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
+				<use xlink:href="#exclamation-triangle-fill" />
+			</svg>
+			<div>
+				Flame detected in the last 30 minutes — check flame events page for details.
+			</div>
 		</div>
 		<?php endif; ?>
 
 		<?php if ($page === 'air'): ?>
 		<div class="row mb-3">
 			<div class="col-md-8">
-				<div class="card mb-3">
-					<div class="card-header">Recent Air Quality Readings (Last 50)</div>
+				<div class="card">
+					<div class="card-header">Air Quality (recent)</div>
 					<div class="card-body">
-						<table class="table table-sm" id="airTable">
-							<thead>
-								<tr>
-									<th>#</th>
-									<th>Value</th>
-									<th>Time</th>
-								</tr>
-							</thead>
-							<tbody></tbody>
-						</table>
-						<div id="noAirMsg" class="text-muted">Loading...</div>
+						<canvas id="aqChart" height="120"></canvas>
 					</div>
 				</div>
 			</div>
-
 			<div class="col-md-4">
 				<div class="card mb-3">
 					<div class="card-body">
@@ -168,44 +140,86 @@ $recentFlame = flame_in_last_minutes($pdo, 30);
 					<div class="card-header">Complaint / Status</div>
 					<div class="card-body" id="aqComplaint">
 						<?php
-                        if ($latest) {
-                            $val = (float)$latest['value'];
-                            if ($val >= 300) {
-                                echo "<div class='alert alert-warning'>High pollution detected (value = $val). Raise alarm / ventilation.</div>";
-                            } elseif ($val >= 150) {
-                                echo "<div class='alert alert-info'>Moderate pollution (value = $val). Monitor closely.</div>";
-                            } else {
-                                echo "<div class='text-success'>Air quality normal (value = $val).</div>";
-                            }
-                        } else {
-                            echo "<div class='text-muted'>No data yet.</div>";
-                        }
+              // simple rule: value > 300 => complaint (adjust for your sensor)
+              $complaint = '';
+if ($latest) {
+    $val = (float)$latest['value'];
+    if ($val >= 300) {
+        $complaint = "<div class='alert alert-warning'>High pollution detected (value = $val). Raise alarm / ventilation.</div>";
+    } elseif ($val >= 150) {
+        $complaint = "<div class='alert alert-info'>Moderate pollution (value = $val). Monitor closely.</div>";
+    } else {
+        $complaint = "<div class='text-success'>Air quality normal (value = $val).</div>";
+    }
+} else {
+    $complaint = "<div class='text-muted'>No data yet.</div>";
+}
+echo $complaint;
 ?>
 					</div>
 				</div>
+
 			</div>
 		</div>
 
 		<script>
-			async function fetchAir() {
+			// Fetch data and plot
+			async function fetchAirData() {
 				const res = await fetch('?fetch=air_recent');
-				return await res.json();
+				const rows = await res.json();
+				return rows;
+			}
+
+			function buildChart(labels, data) {
+				const ctx = document.getElementById('aqChart').getContext('2d');
+				if (window.aqChart) window.aqChart.destroy();
+				window.aqChart = new Chart(ctx, {
+					type: 'line',
+					data: {
+						labels: labels,
+						datasets: [{
+							label: 'Air Value',
+							data: data,
+							tension: 0.2,
+							fill: true,
+							pointRadius: 1
+						}]
+					},
+					options: {
+						scales: {
+							x: {
+								display: true,
+								ticks: {
+									maxRotation: 0,
+									autoSkip: true,
+									maxTicksLimit: 12
+								}
+							},
+							y: {
+								beginAtZero: true
+							}
+						},
+						plugins: {
+							legend: {
+								display: false
+							}
+						}
+					}
+				});
 			}
 
 			(async () => {
-				const rows = await fetchAir();
-				const tbody = document.querySelector('#airTable tbody');
-				tbody.innerHTML = '';
-				if (!rows.length) {
-					document.getElementById('noAirMsg').innerText = 'No air data yet.';
-					return;
-				}
-				document.getElementById('noAirMsg').innerText = '';
-				rows.forEach((r) => {
-					const tr = document.createElement('tr');
-					tr.innerHTML = `<td>${r.id}</td><td>${r.value}</td><td>${r.recorded_at}</td>`;
-					tbody.appendChild(tr);
-				});
+				const rows = await fetchAirData();
+				const labels = rows.map(r => r.recorded_at);
+				const values = rows.map(r => Number(r.value));
+				buildChart(labels, values);
+				// update latest displayed value every 10s
+				setInterval(async () => {
+					const r = await fetchAirData();
+					if (r.length) {
+						document.getElementById('latestVal').innerText = r[r.length - 1].value;
+					}
+				}, 10000);
 			})();
 		</script>
 
@@ -213,7 +227,7 @@ $recentFlame = flame_in_last_minutes($pdo, 30);
 		<div class="row">
 			<div class="col-md-8">
 				<div class="card mb-3">
-					<div class="card-header">Recent Flame Events (Last 50)</div>
+					<div class="card-header">Recent Flame Events</div>
 					<div class="card-body">
 						<table class="table table-sm" id="flameTable">
 							<thead>
@@ -258,10 +272,9 @@ $recentFlame = flame_in_last_minutes($pdo, 30);
 					return;
 				}
 				document.getElementById('noFlameMsg').innerText = '';
-				rows.forEach((r) => {
+				rows.forEach((r, idx) => {
 					const tr = document.createElement('tr');
-					const statusText = r.status == 1 ?
-						'<span class="badge bg-danger">FLAME</span>' :
+					const statusText = r.status == 1 ? '<span class="badge bg-danger">FLAME</span>' :
 						'<span class="badge bg-secondary">OK</span>';
 					tr.innerHTML = `<td>${r.id}</td><td>${statusText}</td><td>${r.recorded_at}</td>`;
 					tbody.appendChild(tr);
@@ -269,52 +282,10 @@ $recentFlame = flame_in_last_minutes($pdo, 30);
 			})();
 		</script>
 
-		<?php elseif ($page === 'cow'): ?>
-		<div class="row">
-			<div class="col-md-12">
-				<div class="card mb-3">
-					<div class="card-header">Last 3 Detected Cows</div>
-					<div class="card-body text-center">
-						<div id="cowImages" class="row g-3 justify-content-center"></div>
-						<div id="noCowMsg" class="text-muted mt-2">Loading...</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<script>
-			async function fetchCowImages() {
-				const res = await fetch('?fetch=cow_images');
-				return await res.json();
-			}
-
-			(async () => {
-				const rows = await fetchCowImages();
-				const container = document.getElementById('cowImages');
-				const msg = document.getElementById('noCowMsg');
-				container.innerHTML = '';
-				if (!rows.length) {
-					msg.innerText = 'No cow images found yet.';
-					return;
-				}
-				msg.innerText = '';
-				rows.forEach(r => {
-					const col = document.createElement('div');
-					col.className = 'col-md-4';
-					col.innerHTML = `
-						<div class="card shadow-sm">
-							<img src="data:image/jpeg;base64,${r.image_base64}" class="cow-img card-img-top" alt="Cow">
-							<div class="card-body text-center small text-muted">
-								Detected at: ${r.recorded_at}
-							</div>
-						</div>`;
-					container.appendChild(col);
-				});
-			})();
-		</script>
 		<?php endif; ?>
 	</div>
 
+	<!-- bootstrap js bundle -->
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
