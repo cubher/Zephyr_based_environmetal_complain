@@ -1,5 +1,6 @@
 .venv
 .vscode
+zephyrproject/old/
 zephyrproject/bootloader
 zephyrproject/.west
 zephyrproject/build
